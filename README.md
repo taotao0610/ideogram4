@@ -19,7 +19,7 @@
 </p>
 
 
-Ideogram 4 is **[Ideogram](https://ideogram.ai)'s first open-source text-to-image model**. It is a **state-of-the-art foundation model trained from scratch** — not a fine-tune of any existing model. It introduces a new structured JSON prompting interface, with best-in-class multilingual text rendering, deep language understanding, explicit bounding-box layout and color-palette controls, and native 2k resolution images. The easiest way to try the model is online at **[ideogram.ai](https://ideogram.ai/)**.
+Ideogram 4 is **[Ideogram](https://ideogram.ai)'s first open-weight text-to-image model**. It is a **state-of-the-art foundation model trained from scratch** — not a fine-tune of any existing model. It introduces a new structured JSON prompting interface, with best-in-class multilingual text rendering, deep language understanding, explicit bounding-box layout and color-palette controls, and native 2k resolution images. The easiest way to try the model is online at **[ideogram.ai](https://ideogram.ai/)**.
 
 We believe openness drives innovation, and we invite the research community to innovate with us on the forefront of visual intelligence.
 
@@ -153,6 +153,25 @@ under `src/ideogram4/` take effect without reinstalling:
 ```bash
 pip install -e .
 ```
+
+### Model access
+
+The model weights are **gated** on Hugging Face, so you must accept the gate and
+authenticate before the code can download them — otherwise the download fails
+with a `404` / `GatedRepoError`.
+
+1. Open the model page — [ideogram-ai/ideogram-4-nf4](https://huggingface.co/ideogram-ai/ideogram-4-nf4)
+   (or [ideogram-ai/ideogram-4-fp8](https://huggingface.co/ideogram-ai/ideogram-4-fp8)) — and click
+   **Agree and access repository** to accept the license gate.
+2. Create a Hugging Face access token at
+   [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) and log in so the
+   download is authenticated:
+
+   ```bash
+   hf auth login
+   ```
+
+   Alternatively, export the token directly: `export HF_TOKEN="hf_..."`.
 
 ### CLI
 
