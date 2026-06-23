@@ -161,6 +161,77 @@ def openrouter_chat(
   return _strip_code_fences(content)
 
 
+def anthropic_chat(
+  model: str,
+  messages: list[dict],
+  api_key: str | None,
+  base_url: str,
+  *,
+  temperature: float | None = 1.0,
+  max_tokens: int = 16384,
+  timeout: float = 120.0,
+) -> str:
+  """Run one chat completion through an Anthropic-compatible API.
+
+  ``base_url`` is the root URL of the Anthropic-compatible endpoint (e.g.
+  ``"https://api.deepseek.com/anthropic"``). The function converts OpenAI-style
+  messages (where ``system`` is a role) into Anthropic's native format (where
+  ``system`` is a top-level field) and POSTs to ``{base_url}/v1/messages``.
+  """
+  if not api_key:
+    raise RuntimeError("No API key. Set MAGIC_PROMPT_API_KEY or pass api_key=...")
+
+  system = None
+  converted: list[dict] = []
+  for msg in messages:
+    if msg["role"] == "system":
+      system = msg["content"]
+    else:
+      converted.append({"role": msg["role"], "content": msg["content"]})
+
+  body: dict = {
+    "model": model,
+    "messages": converted,
+    "max_tokens": max_tokens,
+    "thinking": {"type": "disabled"},
+  }
+  if system is not None:
+    body["system"] = system
+  if temperature is not None:
+    body["temperature"] = temperature
+
+  resp = requests.post(
+    f"{base_url}/v1/messages",
+    headers={
+      "x-api-key": api_key,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    json=body,
+    timeout=timeout,
+  )
+  resp.raise_for_status()
+  data = resp.json()
+
+  content = data.get("content")
+  if not content:
+    raise RuntimeError(f"Anthropic API returned no content: {data}")
+  text: str | None = None
+  for block in content:
+    text = block.get("text")
+    if text:
+      break
+  if not text:
+    # Reasoning models (e.g. DeepSeek) may return only thinking blocks.
+    for block in content:
+      text = block.get("thinking")
+      if text:
+        break
+  if not text:
+    raise RuntimeError(f"Anthropic API returned no text content: {content}")
+  return _strip_code_fences(text)
+
+
 def _to_ideogram_aspect_ratio(aspect_ratio: str) -> str:
   """Convert a ``"W:H"`` ratio to Ideogram's ``"WxH"`` form (``AUTO`` passes through)."""
   if aspect_ratio.upper() == "AUTO":
@@ -353,10 +424,42 @@ class Ideogram4MagicPromptV1(MagicPrompt):
     return strip_aspect_ratio_and_bboxes(caption, strip_bboxes=self.strip_bboxes)
 
 
+class DeepSeekMagicPromptV1(MagicPrompt):
+  """Magic prompt v1 on DeepSeek, via an Anthropic-compatible endpoint."""
+
+  def __init__(
+    self,
+    api_key: str | None = None,
+    *,
+    model: str = "deepseek-v4-pro",
+    base_url: str = "https://api.deepseek.com/anthropic",
+    timeout: float = 120.0,
+    strip_bboxes: bool = True,
+  ) -> None:
+    self.api_key = api_key
+    self.model = model
+    self.base_url = base_url
+    self.timeout = timeout
+    self.strip_bboxes = strip_bboxes
+
+  def expand(self, prompt: str, aspect_ratio: str = "1:1") -> str:
+    messages = build_messages("v1.txt", prompt, aspect_ratio)
+    caption = anthropic_chat(
+      self.model,
+      messages,
+      self.api_key,
+      base_url=self.base_url,
+      temperature=1.0,
+      timeout=self.timeout,
+    )
+    return strip_aspect_ratio_and_bboxes(caption, strip_bboxes=self.strip_bboxes)
+
+
 MAGIC_PROMPTS: dict[str, type[MagicPrompt]] = {
   "claude-sonnet-v1": ClaudeSonnetMagicPromptV1,
   "claude-opus-v1": ClaudeOpusMagicPromptV1,
   "ideogram-4-v1": Ideogram4MagicPromptV1,
+  "deepseek-v1": DeepSeekMagicPromptV1,
 }
 
 DEFAULT_MAGIC_PROMPT = "ideogram-4-v1"

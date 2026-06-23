@@ -1,3 +1,8 @@
+diffusiongemma-26B/
+output/
+input/
+start.zsh
+start2.zsh
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

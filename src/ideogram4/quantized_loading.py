@@ -196,7 +196,11 @@ class Fp8Linear(nn.Module):
 
   def forward(self, x: torch.Tensor) -> torch.Tensor:
     w = self.weight.to(x.dtype) * self.weight_scale.to(x.dtype).unsqueeze(1)
+    if w.device != x.device:
+      w = w.to(x.device)
     bias = self.bias.to(x.dtype) if self.bias is not None else None
+    if bias is not None and bias.device != x.device:
+      bias = bias.to(x.device)
     return F.linear(x, w, bias)
 
 
@@ -259,9 +263,9 @@ def load_fp8_state_dict(
   prepared: dict[str, torch.Tensor] = {}
   for k, v in state_dict.items():
     if v.dtype == FP8_WEIGHT_DTYPE:
-      prepared[k] = v.to(device=device)
+      prepared[k] = v  # keep fp8 on CPU — MPS cannot store float8
     elif k.endswith(FP8_SCALE_SUFFIX):
-      prepared[k] = v.to(device=device, dtype=torch.float32)
+      prepared[k] = v  # keep scale on CPU alongside the fp8 weight
     elif v.is_floating_point():
       prepared[k] = v.to(device=device, dtype=dtype)
     else:
@@ -275,4 +279,14 @@ def load_fp8_state_dict(
       raise RuntimeError(f"missing keys after fp8 load: {missing[:10]}")
     warnings.warn(f"missing keys after fp8 load: {missing[:10]}", stacklevel=2)
 
-  model.to(device)
+  # Move non-Fp8Linear parameters to device; Fp8Linear keeps fp8 weight + scale
+  # on CPU and dequantizes on-the-fly in forward().
+  for module in model.modules():
+    if isinstance(module, Fp8Linear):
+      if module.bias is not None:
+        module.bias = module.bias.to(device)
+    else:
+      for param in module.parameters(recurse=False):
+        param.data = param.data.to(device)
+      for buf in module.buffers(recurse=False):
+        buf.data = buf.data.to(device)

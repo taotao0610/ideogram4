@@ -16,14 +16,15 @@ class LogitNormalSchedule:
   logsnr_max: float = 18.0
 
   def __call__(self, t: torch.Tensor) -> torch.Tensor:
-    t = t.to(torch.float64)
+    orig_device = t.device
+    t = t.to(device="cpu").to(torch.float64)
     z = torch.special.ndtri(t)
     y = self.mean + self.std * z
     t_ = torch.special.expit(y)
     t_ = 1 - t_
     t_min = 1.0 / (1 + math.exp(0.5 * self.logsnr_max))
     t_max = 1.0 / (1 + math.exp(0.5 * self.logsnr_min))
-    return t_.clamp(t_min, t_max).to(torch.float32)
+    return t_.clamp(t_min, t_max).to(device=orig_device, dtype=torch.float32)
 
 
 def get_schedule_for_resolution(
