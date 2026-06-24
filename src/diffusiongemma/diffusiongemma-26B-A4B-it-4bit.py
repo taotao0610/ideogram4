@@ -5,8 +5,8 @@ from mlx_vlm.utils import load_config
 model, processor = load("mlx-community/diffusiongemma-26B-A4B-it-4bit")
 config = load_config("mlx-community/diffusiongemma-26B-A4B-it-4bit")
 
-image = ["http://images.cocodataset.org/val2017/000000039769.jpg"]
-prompt = "Describe this image."
+image = ["input/girl.jpg"]
+prompt = "用中文描述这个图片。"
 
 formatted_prompt = apply_chat_template(
     processor, config, prompt, num_images=1

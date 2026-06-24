@@ -1,4 +1,6 @@
 diffusiongemma-26B/
+run_gemma.zsh
+faile_log/
 output/
 input/
 start.zsh

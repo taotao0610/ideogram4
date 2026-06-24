@@ -115,6 +115,22 @@ def _strip_code_fences(text: str) -> str:
   return "\n".join(lines).strip()
 
 
+def _extract_first_json(text: str) -> str:
+  """Extract the first JSON object from text that may have trailing junk.
+
+  LLMs sometimes wrap JSON in prose ("Here is the caption: {...}") or append
+  footnotes after the closing brace. raw_decode parses a single object from
+  the first ``{`` and ignores whatever follows. Returns the object
+  re-minified as a clean JSON string.
+  """
+  start = text.find("{")
+  if start < 0:
+    raise json.JSONDecodeError("No JSON object found", text, 0)
+  decoder = json.JSONDecoder()
+  obj, _end = decoder.raw_decode(text[start:])
+  return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+
+
 def openrouter_chat(
   model: str,
   messages: list[dict],
@@ -325,7 +341,21 @@ def ideogram_magic_prompt(
 
 
 def strip_aspect_ratio_and_bboxes(caption: str, *, strip_bboxes: bool = True) -> str:
-  data = json.loads(caption)
+  try:
+    data = json.loads(caption)
+  except json.JSONDecodeError:
+    import sys
+    import time
+    from pathlib import Path
+
+    log_dir = Path("faile_log")
+    log_dir.mkdir(exist_ok=True)
+    (log_dir / f"bad_caption_{int(time.time())}.txt").write_text(caption)
+    print(
+      "warning: magic-prompt JSON parse failed; attempting recovery",
+      file=sys.stderr,
+    )
+    data = json.loads(_extract_first_json(caption))
   data.pop("aspect_ratio", None)
   if strip_bboxes:
     elements = data.get("compositional_deconstruction", {}).get("elements", [])
